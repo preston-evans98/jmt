@@ -6,8 +6,8 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::{
     mock::MockTreeStore,
-    node_type::{Child, Children, Node, NodeKey, NodeType},
-    storage::{TreeReader, TreeUpdateBatch},
+    node_type::{AugmentedNode, Child, Children, NodeKey, NodeType},
+    storage::{Node, TreeReader, TreeUpdateBatch},
     tests::helper::{
         arb_existent_kvs_and_deletions_and_nonexistent_keys, arb_existent_kvs_and_nonexistent_keys,
         arb_interleaved_insertions_and_deletions, arb_kv_pair_with_distinct_last_nibble,
@@ -66,8 +66,11 @@ fn test_insert_to_pre_genesis() {
     let key1 = KeyHash([0x00u8; 32]);
     let value1 = vec![1u8, 2u8];
     let pre_genesis_root_key = NodeKey::new_empty_path(PRE_GENESIS_VERSION);
-    db.put_node(pre_genesis_root_key, Node::new_leaf(key1, value1.clone()))
-        .unwrap();
+    db.put_node(
+        pre_genesis_root_key,
+        AugmentedNode::new_leaf(key1, value1.clone()),
+    )
+    .unwrap();
 
     // Genesis inserts one more leaf.
     let tree = JellyfishMerkleTree::new(&db);
@@ -269,7 +272,10 @@ fn test_insert_at_leaf_with_multiple_internals_created() {
     // Purge retired nodes.
     db.purge_stale_nodes(1).unwrap();
     assert_eq!(db.num_nodes(), 7);
+    assert_eq!(db.num_nodes(), 7);
+    dbg!(&db);
     db.purge_stale_nodes(2).unwrap();
+    dbg!(&db);
     assert_eq!(db.num_nodes(), 4);
     assert_eq!(tree.get(key1, 2).unwrap().unwrap(), value1);
     assert_eq!(tree.get(key2, 2).unwrap().unwrap(), value2_update);
@@ -328,9 +334,16 @@ fn test_batch_insertion() {
     // key2 was updated so we remove it.
     to_verify.remove(1);
     let verify_fn = |tree: &JellyfishMerkleTree<MockTreeStore>, version: Version| {
-        to_verify
-            .iter()
-            .for_each(|(k, v)| assert_eq!(Some(tree.get(*k, version).unwrap().unwrap()), *v))
+        to_verify.iter().for_each(|(k, v)| {
+            assert_eq!(
+                Some(
+                    tree.get(*k, version)
+                        .expect(&format!("missing value for {k:?}, {version:}"))
+                        .expect(&format!("missing value for {k:?}, {version:}"))
+                ),
+                *v
+            )
+        })
     };
 
     // Insert as one batch and update one by one.
@@ -344,6 +357,7 @@ fn test_batch_insertion() {
 
         // get # of nodes
         assert_eq!(db.num_nodes(), 12);
+        // assert_eq!(db.num_values(), 6);
     }
 
     // Insert in multiple batches.
@@ -371,6 +385,7 @@ fn test_batch_insertion() {
         // add 3, prune 1
         // ```
         assert_eq!(db.num_nodes(), 25);
+        // assert_eq!(db.num_values(), 5);
         db.purge_stale_nodes(2).unwrap();
         // ```text
         //     internal(p)             internal(a)
@@ -572,7 +587,7 @@ fn test_put_value_sets() {
                 .unwrap();
             db.write_tree_update_batch(batch.clone()).unwrap();
             root_hashes_one_by_one.push(root);
-            batch_one_by_one.node_batch.extend(batch.node_batch);
+            batch_one_by_one.node_batch.merge(batch.node_batch);
             batch_one_by_one
                 .stale_node_index_batch
                 .extend(batch.stale_node_index_batch);

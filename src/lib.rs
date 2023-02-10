@@ -92,6 +92,7 @@ pub use tree::ics23_impl::ics23_spec;
 pub use tree::JellyfishMerkleTree;
 use types::nibble::ROOT_NIBBLE_HEIGHT;
 pub use types::proof;
+pub use types::value_identifier::ValueIdentifier;
 pub use types::Version;
 
 /// Contains types used to bridge a [`JellyfishMerkleTree`](crate::JellyfishMerkleTree)
@@ -101,7 +102,8 @@ pub mod storage {
     pub use reader::HasPreimage;
     pub use reader::TreeReader;
     pub use writer::{
-        NodeBatch, NodeStats, StaleNodeIndex, StaleNodeIndexBatch, TreeUpdateBatch, TreeWriter,
+        NodeStats, StaleNodeIndex, StaleNodeIndexBatch, TreeChangeBatch, TreeUpdateBatch,
+        TreeWriter,
     };
 
     use super::*;
